@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Taiwan News Map</title>
+  <meta charset="utf-8">
+
+  <!--references if some js template-->
+  <link rel='stylesheet' href='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css' />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.6.0/css/bootstrap-datepicker.min.css" rel="stylesheet" type="text/css" />
+  <link rel="stylesheet" href="css/map.css" />
+
+  <script src="http://d3js.org/d3.v3.min.js"></script>
+  <script src='https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js'></script>
+  <script src='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js'></script>
+  <script src="http://d3js.org/topojson.v1.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.6.0/js/bootstrap-datepicker.min.js"></script>
+
+  <script type="text/javascript">
+  $(function () {
+    $('.form_datetime').datepicker({
+      format: 'yyyy-mm-dd'
+    });
+  });
+ </script>
+</head>
+
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-default navbar-static-up" role="navigation">
+    <div class="col-md-6 col-md-offset-2">
+      <form class="navbar-form">
+        <!-- Post query input field and submit button -->
+        <input class="form-control" type="text" id="page_input" placeholder="{Facebook Page id}" onkeypress="return useridKeyPress(event);" size="40">
+        <input class="form-control form_datetime" type="text"  id="sinceDateField" value="yyyy-mm-dd" size="15">
+        <input class="form-control form_datetime" type="text"  id="untilDateField" value="yyyy-mm-dd" size="15">
+        <!--<input class="form-control" id="sinceDateField" type="text" placeholder="yyyy-mm-dd">
+        <input class="form-control" id="untilDateField" type="text" placeholder="yyyy-mm-dd">-->
+        <button class="btn btn-default" type="button" id="submit" onclick="button_submit()"><i class="glyphicon glyphicon-search"></i></button>
+      </form>
+    </div>
+
+    <!-- Facebook authorization info and button -->
+    <div class="nav navbar-nav col-md-4">
+      <button type="button" class="btn btn-link navrbar-btn" id="user-info" class="muted"></button>
+      <button type="button" class="btn btn-inverse navrbar-btn" id="fb-auth"></button>
+    </div>
+  </nav>
+
+  <div align="center">
+    <div id="page_info"></div>
+    <div id="post_info"></div>
+    <div id="loading_image"><img src="img/loading.gif" /></div>
+  </div>
+  <div id="fbgraph" align="left"></div>
+  <div id="fbmessage"></div>
+  <div id="fb-root"></div>
+  <script src="fbOauthLogin.js"></script>
+
+  <script>
+
+    var since, until, sincedate, untildate, the_nest;
+
+    function useridKeyPress(event) {
+
+      if (event.keyCode == 13) {
+        document.getElementById("submit").click();
+        return false;
+      }
+      return true;
+    }
+    function set_since_until(since,until)
+    {
+      var sinceyyyy = parseInt(since[0]);
+      var sincemm = parseInt(since[1])-1;
+      var sincedd = parseInt(since[2]);
+
+      var untilyyyy = parseInt(until[0]);
+      var untilmm = parseInt(until[1])-1;
+      var untildd = parseInt(until[2]);
+
+      sincedate = new Date(sinceyyyy,sincemm,sincedd);
+      untildate = new Date(untilyyyy,untilmm,untildd);
+      sincedate.setDate(sincedate.getDate()+1);
+      untildate.setDate(untildate.getDate()+1);
+
+      sincedate = sincedate.toISOString().slice(0, 10);
+      untildate = untildate.toISOString().slice(0, 10);
+    }
+
+    function button_submit() {
+
+      since = document.getElementById("sinceDateField").value.split("-");
+      until = document.getElementById("untilDateField").value.split("-");
+
+      set_since_until(since,until);
+
+      document.getElementById("page_info").innerHTML = "";
+      document.getElementById("post_info").innerHTML = "";
+      d3.select("svg").remove();
+
+      document.getElementById("loading_image").style.display = "inline";
+
+      // fb_related_url is related to two formats below:
+      var fb_page_name = document.getElementById("page_input").value;
+
+      FB.api(fb_page_name, function(res) {
+        if (!res.error) {
+
+          function queryPageInfo(pagename, tokens, sincedate, untildate) {
+
+            FB.api(
+              "/"+pagename+"?fields=id,name,posts.until("+untildate+").since("+sincedate+").limit(100){message,name,description}",
+              function(response) {
+                if (response.error) {
+                  console.log(response);
+                }
+
+                if (response && !response.error) {
+                  var data = response;
+
+                  document.getElementById("page_info").innerHTML = "<span id=\"logo\"><img src=\"http://graph.facebook.com/"+data.id+"/picture\">&nbsp;&nbsp;"+data.name+"</span>";
+
+                  d3.select("#post_info")
+                  .append("p")
+                  .text("Total posts: " +data.posts.data.length);
+
+
+                  d3.json("map/map_data.json", function(map_data) {
+
+                   var the_source = map_data;
+
+                   the_nest = d3.nest().key(function(d){
+                     return d.name;
+                   })
+                   .entries(the_source)
+
+                   for(var j=0; j<data.posts.data.length; j++) {
+
+                     var total_message = "";
+
+                     if(data.posts.data[j].description != undefined) {
+                       total_message = data.posts.data[j].message + data.posts.data[j].name +data.posts.data[j].description;
+                     }
+
+                     for(var i=0; i<the_nest.length; i++) {
+                       if(total_message.match(the_nest[i].key)) {
+                         the_nest[i].values[0].value += 1;
+                         the_nest[i].values[0].message.push(data.posts.data[j].message);
+                       }
+                     }
+                   }
+                  })
+
+                  //var total_message = data.message + data.name + data.description;
+
+              		d3.json("map/twCounty2010merge.topo.json", function (error, topodata) {
+
+                    topo = topojson.feature(topodata, topodata.objects.layer1);
+                    var path = d3.geo.path().projection(
+                      d3.geo.mercator().center([120.2,24.2]).scale(9000)
+                    );
+
+                    var width = 700,
+                        height = 700;
+
+                    var svg = d3.select("body").select("#fbgraph")
+                    .append("svg")
+                    .attr("width", width)
+                    .attr("height", height)
+                    .append("g");
+
+                    svg.selectAll("path")
+                    .data(topo.features)
+                    .enter()
+                    .append("path")
+                    .attr("fill", function(d, i) {
+
+                      if(d.properties.name == the_nest[i].key) {
+                        return "rgb("+Number(the_nest[i].values[0].value*40+50)+", "+ Number(the_nest[i].values[0].value*40+50) +", 50)";
+                      } else return "rgb(50, 50, 50)";
+
+                    })
+                    .attr("d", path)
+                    .on("mouseover", mouse_over)
+                    .on("mouseout", mouse_out);
+
+                    svg.selectAll("path")
+                    .data(topo.features);
+                  });
+
+                  function mouse_over(d, i) {
+                    d3.select(this)
+                    .style("fill", "yellow");
+
+                    if(d.properties.name == the_nest[i].key) {
+                      if(the_nest[i].values[0].message.length === 0) {
+                        fbmessage.innerHTML = "<p> No post about "+d.properties.name+"</p>";
+                      } else {
+                        for(var j=0; j<the_nest[i].values[0].message.length; j++) {
+                          fbmessage.innerHTML += "<p>"+d.properties.name+" ("+(j+1)+")<br>"+"</p>";
+                          fbmessage.innerHTML += "<p>"+the_nest[i].values[0].message[j]+"<br></p>";
+                        }
+                      }
+                    }
+                  }
+
+                  function mouse_out(d) {
+                    d3.select(this)
+                    .style("fill", null)
+
+                    fbmessage.innerHTML = "";
+                  }
+
+                  document.getElementById("loading_image").style.display = "none";
+                }
+              });
+          };
+
+          queryPageInfo(fb_page_name, ACCESS_TOKEN, sincedate, untildate);
+        }
+      });
+    };
+  </script>
+</body>
+</html>
