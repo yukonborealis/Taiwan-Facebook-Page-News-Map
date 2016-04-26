@@ -9,26 +9,45 @@ body {
 .navbar-nav {
   line-height: 50px;
 }
+#startpage {
+  position: absolute;
+  top: 250px;
+  left: 25%;
+  color: white;
+  font-size: 25px;
+  line-height: 100px;
+  text-align: center;
+}
 #user-info {
   color: white;
 }
 #page_info {
+  position: fixed;
+  top: 120px;
+  left: 100px;
   color: white;
   font-size: 40px;
   font-weight: bold;
   padding-bottom: 50px;
 }
 #post_info {
+  position: fixed;
+  top: 190px;
+  left: 100px;
   width: 70%;
   color: white;
   font-size: 16px;
   line-height: 30px;
 }
+#fbgraph {
+  position: fixed;
+  top: 250px;
+}
 #fbmessage {
   position: absolute;
-  top: 30%;
+  top: 200px;
   right: 5%;
-  width: 55%;
+  width: 50%;
   height: 60%;
   color: white;
   font-size: 16px;

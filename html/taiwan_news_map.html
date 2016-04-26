@@ -27,33 +27,47 @@
 
 <body>
   <!-- Navbar -->
-  <nav class="navbar navbar-default navbar-static-up" role="navigation">
-    <div class="col-md-6 col-md-offset-2">
+  <nav class="navbar navbar-default navbar-fixed-top" role="navigation">
+    <div class="col-md-8 col-md-offset-1">
       <form class="navbar-form">
         <!-- Post query input field and submit button -->
-        <input class="form-control" type="text" id="page_input" placeholder="{Facebook Page id}" onkeypress="return useridKeyPress(event);" size="40">
-        <input class="form-control form_datetime" type="text"  id="sinceDateField" value="yyyy-mm-dd" size="15">
-        <input class="form-control form_datetime" type="text"  id="untilDateField" value="yyyy-mm-dd" size="15">
-        <!--<input class="form-control" id="sinceDateField" type="text" placeholder="yyyy-mm-dd">
-        <input class="form-control" id="untilDateField" type="text" placeholder="yyyy-mm-dd">-->
+        <input class="form-control" type="text" id="page_input" placeholder="{Facebook Page id}" onkeypress="return useridKeyPress(event);" size="20">
+        <input class="form-control form_datetime" type="text"  id="sinceDateField" value="Start date" size="12">
+        <input class="form-control form_datetime" type="text"  id="untilDateField" value="End date" size="12">
         <button class="btn btn-default" type="button" id="submit" onclick="button_submit()"><i class="glyphicon glyphicon-search"></i></button>
       </form>
     </div>
 
     <!-- Facebook authorization info and button -->
-    <div class="nav navbar-nav col-md-4">
+    <div class="nav navbar-nav">
       <button type="button" class="btn btn-link navrbar-btn" id="user-info" class="muted"></button>
       <button type="button" class="btn btn-inverse navrbar-btn" id="fb-auth"></button>
     </div>
   </nav>
 
   <div align="center">
-    <div id="page_info"></div>
-    <div id="post_info"></div>
     <div id="loading_image"><img src="img/loading.gif" /></div>
   </div>
+  <div id="page_info"></div>
+  <div id="post_info"></div>
+  <div id="startpage">
+    <p>
+    這是一個關於台灣新聞粉絲團貼文的地理視覺化<br>
+    透過視覺化可觀察期間內各縣市的新聞分布情形<br>
+    點選縣市區塊則會顯示該縣市相關的文章細節<br>
+    使用方式：輸入該粉絲團的name，以及時間區間後按下查詢按鈕即可<br>
+    以東森新聞雲為例：https://www.facebook.com/<font color="yellow">ETtoday</font>/?fref=ts，東森新聞雲的name即為<font color="yellow">ETtoday</font>
+    </p>
+  </div>
   <div id="fbgraph" align="left"></div>
-  <div id="fbmessage"></div>
+  <div id="fbmessage">
+    <table class="table">
+      <thead id="fbthead">
+      </thead>
+      <tbody id="fbtable">
+      </tbody>
+    </table>
+  </div>
   <div id="fb-root"></div>
   <script src="fbOauthLogin.js"></script>
 
@@ -95,129 +109,199 @@
 
       set_since_until(since,until);
 
+      document.getElementById("startpage").innerHTML = "";
       document.getElementById("page_info").innerHTML = "";
       document.getElementById("post_info").innerHTML = "";
+      document.getElementById("fbtable").innerHTML = "";
+      document.getElementById("fbthead").innerHTML = "";
+
+      total_page_data = [];
+
       d3.select("svg").remove();
 
       document.getElementById("loading_image").style.display = "inline";
 
-      // fb_related_url is related to two formats below:
-      var fb_page_name = document.getElementById("page_input").value;
+      get_fb_data();
+    }
+
+    function get_fb_data() {
+
+      var fb_page_name = document.getElementById("page_input").value,
+          total_page_data = [];
 
       FB.api(fb_page_name, function(res) {
         if (!res.error) {
 
           function queryPageInfo(pagename, tokens, sincedate, untildate) {
 
-            FB.api(
-              "/"+pagename+"?fields=id,name,posts.until("+untildate+").since("+sincedate+").limit(100){message,name,description}",
+            FB.api("/"+pagename+"?fields=id,name,posts.until("+untildate+").since("+sincedate+").limit(100){created_time,message,name,description}",
               function(response) {
                 if (response.error) {
                   console.log(response);
                 }
 
-                if (response && !response.error) {
-                  var data = response;
+                var first_data = response;
 
-                  document.getElementById("page_info").innerHTML = "<span id=\"logo\"><img src=\"http://graph.facebook.com/"+data.id+"/picture\">&nbsp;&nbsp;"+data.name+"</span>";
+                total_page_data.push(first_data);
 
-                  d3.select("#post_info")
-                  .append("p")
-                  .text("Total posts: " +data.posts.data.length);
-
-
-                  d3.json("map/map_data.json", function(map_data) {
-
-                   var the_source = map_data;
-
-                   the_nest = d3.nest().key(function(d){
-                     return d.name;
-                   })
-                   .entries(the_source)
-
-                   for(var j=0; j<data.posts.data.length; j++) {
-
-                     var total_message = "";
-
-                     if(data.posts.data[j].description != undefined) {
-                       total_message = data.posts.data[j].message + data.posts.data[j].name +data.posts.data[j].description;
-                     }
-
-                     for(var i=0; i<the_nest.length; i++) {
-                       if(total_message.match(the_nest[i].key)) {
-                         the_nest[i].values[0].value += 1;
-                         the_nest[i].values[0].message.push(data.posts.data[j].message);
-                       }
-                     }
-                   }
-                  })
-
-                  //var total_message = data.message + data.name + data.description;
-
-              		d3.json("map/twCounty2010merge.topo.json", function (error, topodata) {
-
-                    topo = topojson.feature(topodata, topodata.objects.layer1);
-                    var path = d3.geo.path().projection(
-                      d3.geo.mercator().center([120.2,24.2]).scale(9000)
-                    );
-
-                    var width = 700,
-                        height = 700;
-
-                    var svg = d3.select("body").select("#fbgraph")
-                    .append("svg")
-                    .attr("width", width)
-                    .attr("height", height)
-                    .append("g");
-
-                    svg.selectAll("path")
-                    .data(topo.features)
-                    .enter()
-                    .append("path")
-                    .attr("fill", function(d, i) {
-
-                      if(d.properties.name == the_nest[i].key) {
-                        return "rgb("+Number(the_nest[i].values[0].value*40+50)+", "+ Number(the_nest[i].values[0].value*40+50) +", 50)";
-                      } else return "rgb(50, 50, 50)";
-
-                    })
-                    .attr("d", path)
-                    .on("mouseover", mouse_over)
-                    .on("mouseout", mouse_out);
-
-                    svg.selectAll("path")
-                    .data(topo.features);
-                  });
-
-                  function mouse_over(d, i) {
-                    d3.select(this)
-                    .style("fill", "yellow");
-
-                    if(d.properties.name == the_nest[i].key) {
-                      if(the_nest[i].values[0].message.length === 0) {
-                        fbmessage.innerHTML = "<p> No post about "+d.properties.name+"</p>";
-                      } else {
-                        for(var j=0; j<the_nest[i].values[0].message.length; j++) {
-                          fbmessage.innerHTML += "<p>"+d.properties.name+" ("+(j+1)+")<br>"+"</p>";
-                          fbmessage.innerHTML += "<p>"+the_nest[i].values[0].message[j]+"<br></p>";
-                        }
-                      }
-                    }
-                  }
-
-                  function mouse_out(d) {
-                    d3.select(this)
-                    .style("fill", null)
-
-                    fbmessage.innerHTML = "";
-                  }
-
-                  document.getElementById("loading_image").style.display = "none";
+                if(first_data.posts.paging && first_data.posts.paging.next) {
+                  queryPagingnext(first_data.posts.paging.next.slice(32));
                 }
               });
           };
-
           queryPageInfo(fb_page_name, ACCESS_TOKEN, sincedate, untildate);
+
+          function queryPagingnext(page_next) {
+            console.log("queryPagingnext function start!");
+
+            FB.api("/"+page_next,
+              function(response) {
+                if (response.error) {
+                  console.log(response);
+                }
+
+                var next_data = response;
+
+                for(var i=0; i<next_data.data.length; i++) {
+                  total_page_data[0].posts.data.push(next_data.data[i]);
+                }
+
+                if(next_data.paging && next_data.paging.next) {
+                  queryPagingnext(next_data.paging.next.slice(32));
+                } else {
+                  //console.log(total_page_data[0]);
+
+                  run_d3(total_page_data[0]);
+                  document.getElementById("loading_image").style.display = "none";
+                }
+            });
+          };
+
+          // start run d3.js
+          function run_d3(data) {
+
+            document.getElementById("page_info").innerHTML = "<span id=\"logo\"><img src=\"http://graph.facebook.com/"+data.id+"/picture\">&nbsp;&nbsp;"+data.name+"</span>";
+
+            d3.select("#post_info")
+            .append("p")
+            .text("Total posts: " +data.posts.data.length);
+
+            d3.json("map/map_data.json", function(map_data) {
+
+             var the_source = map_data;
+
+             the_nest = d3.nest().key(function(d){
+               return d.name;
+             })
+             .entries(the_source)
+
+             // 關鍵字比對(map_data.json中的key vs posts.data的message、name以及description)
+             for(var j=0; j<data.posts.data.length; j++) {
+               for(var i=0; i<the_nest.length; i++) {
+
+                 // 正規表示法：全域搜尋貼文中所有符合key的值
+                 var reg_key =  new RegExp(the_nest[i].key, "g");
+
+                 if(data.posts.data[j].name == undefined) {
+                   data.posts.data[j].name = "";
+                 }
+
+                 if(data.posts.data[j].message.match(the_nest[i].key)) {
+                   the_nest[i].values[0].value += 1;
+                   the_nest[i].values[0].message.push(data.posts.data[j].message.replace(reg_key, "<font color=\"yellow\">"+the_nest[i].key+"</font>")+"  (message)");
+                 } else if(data.posts.data[j].name.match(the_nest[i].key)) {
+                   the_nest[i].values[0].value += 1;
+                   the_nest[i].values[0].message.push(data.posts.data[j].name.replace(reg_key, "<font color=\"yellow\">"+the_nest[i].key+"</font>")+"  (name)");
+
+                 } else if(data.posts.data[j].description != undefined) {
+                   if(data.posts.data[j].description.match(the_nest[i].key)) {
+                     the_nest[i].values[0].value += 1;
+                     the_nest[i].values[0].message.push(data.posts.data[j].description.replace(reg_key, "<font color=\"yellow\">"+the_nest[i].key+"</font>")+"  (description)");
+                   }
+                 }
+
+                 if(data.posts.data[j].created_time) {
+                   the_nest[i].values[0].time.push(new Date(data.posts.data[j].created_time).toLocaleString());
+                 }
+               }
+             }
+            })
+
+            // 繪製地圖
+            d3.json("map/twCounty2010merge.topo.json", function (error, topodata) {
+
+              topo = topojson.feature(topodata, topodata.objects.layer1);
+              var path = d3.geo.path().projection(
+                d3.geo.mercator().center([121.5,24.2]).scale(8500)
+              );
+
+              var width = 700,
+                  height = 700;
+
+              var svg = d3.select("body").select("#fbgraph")
+              .append("svg")
+              .attr("width", width)
+              .attr("height", height)
+              .append("g");
+
+              var Counties_values = [];
+
+              for(var i=0; i<the_nest.length; i++) {
+                Counties_values.push(the_nest[i].values[0].value);
+              }
+
+              var color_scale = d3.scale.linear()
+              .domain([0, Math.max.apply(Math, Counties_values)])
+              .range([50,255])
+
+              svg.selectAll("path")
+              .data(topo.features)
+              .enter()
+              .append("path")
+              .attr("fill", function(d, i) {
+                if(d.properties.name == the_nest[i].key) {
+                  return "rgb("+Math.round(color_scale(the_nest[i].values[0].value))+", "+ Math.round(color_scale(the_nest[i].values[0].value)) +", 50)";
+                } else return "rgb(50, 50, 50)";
+              })
+              .attr("d", path)
+              .on("mouseover", mouse_over)
+              .on("mouseout", mouse_out)
+              .on("click", mouse_click);
+
+
+              svg.selectAll("path")
+              .data(topo.features);
+            });
+
+            function mouse_over(d, i) {
+              d3.select(this)
+              .style("fill", "gold");
+            }
+
+            function mouse_out(d) {
+              d3.select(this)
+              .style("fill", null)
+            }
+
+            function mouse_click(d, i) {
+
+              fbtable.innerHTML = "";
+
+              if(d.properties.name == the_nest[i].key) {
+                if(the_nest[i].values[0].message.length === 0) {
+                  fbthead.innerHTML = "<th>Posts Message</th>";
+                  fbtable.innerHTML = "<td> No post about "+d.properties.name+"</td>";
+                } else {
+                  fbthead.innerHTML = "<th>Posts Message</th>";
+                  for(var j=0; j<the_nest[i].values[0].message.length; j++) {
+                    //fbmessage.innerHTML += "<p>"+d.properties.name+" ("+(j+1)+") "+the_nest[i].values[0].time[j]+"<br>"+"</p>";
+                    fbtable.innerHTML += "<td>"+the_nest[i].values[0].time[j]+"<br><br>"+the_nest[i].values[0].message[j]+"<br></td>";
+                  }
+                }
+              }
+            }
+            //run_d3 ending
+          }
         }
       });
     };
