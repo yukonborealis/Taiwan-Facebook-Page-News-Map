@@ -1,6 +1,6 @@
 # Taiwan Facebook Page News Map from CGLab NCCU
 
-![Alt Text](https://github.com/yukonborealis/Taiwan-Facebook-Page-News-Map/raw/master/html/img/cover.png)
+![Alt Text](html/img/cover.png)
 
 ## Demo
 Only News fanpage!
