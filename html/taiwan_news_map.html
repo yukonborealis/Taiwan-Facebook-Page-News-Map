@@ -51,7 +51,7 @@
   <div id="page_info"></div>
   <div id="post_info"></div>
   <div id="startpage">
-    <p>
+    <p><br><br>
     這是一個關於台灣新聞粉絲團貼文的地理視覺化<br>
     透過視覺化可觀察期間內各縣市的新聞分布情形<br>
     點選縣市區塊則會顯示該縣市相關的文章細節<br>
@@ -230,19 +230,22 @@
             // 繪製地圖
             d3.json("map/twCounty2010merge.topo.json", function (error, topodata) {
 
+              var map_scale = d3.scale.linear()
+              .domain([600, 1080])
+              .range([5000, 10000]);
+
+              var x_scale = d3.scale.linear()
+              .domain([600, 1080])
+              .range([122, 120]);
+
+              var y_scale = d3.scale.linear()
+              .domain([600, 1080])
+              .range([22.9, 24.2]);
+
               topo = topojson.feature(topodata, topodata.objects.layer1);
               var path = d3.geo.path().projection(
-                d3.geo.mercator().center([121.5,24.2]).scale(8500)
+                d3.geo.mercator().center([x_scale(screen.height), y_scale(screen.height)]).scale(map_scale(screen.height))
               );
-
-              var width = 700,
-                  height = 700;
-
-              var svg = d3.select("body").select("#fbgraph")
-              .append("svg")
-              .attr("width", width)
-              .attr("height", height)
-              .append("g");
 
               var Counties_values = [];
 
@@ -250,9 +253,20 @@
                 Counties_values.push(the_nest[i].values[0].value);
               }
 
+
               var color_scale = d3.scale.linear()
               .domain([0, Math.max.apply(Math, Counties_values)])
               .range([50,255])
+
+              var width = screen.width,
+                  height = screen.height;
+
+              var svg = d3.select("body").select("#fbgraph")
+              .append("svg")
+              .attr("width", width)
+              .attr("height", height)
+              .append("g");
+
 
               svg.selectAll("path")
               .data(topo.features)
